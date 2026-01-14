@@ -35,7 +35,11 @@ async function openAI(path, { method = "GET", body, beta = false } = {}) {
 
   const text = await res.text();
   let data = {};
-  try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
 
   if (!res.ok) {
     const msg = data?.error?.message || `OpenAI request failed (${res.status})`;
@@ -104,6 +108,16 @@ function extractLatestAssistantText(messagesList) {
   return textBlock?.text?.value ?? null;
 }
 
+// Remove file_search citation markers like 
+function stripCitations(text) {
+  if (!text) return text;
+  return text
+    .replace(/【[^】]*】/g, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+}
+
 // --- Routes ---
 
 app.post("/chat/start", async (req, res) => {
@@ -130,7 +144,8 @@ app.post("/chat/send", async (req, res) => {
     await waitForRunComplete(tid, run.id);
 
     const msgs = await listMessages(tid, 20);
-    const reply = extractLatestAssistantText(msgs);
+    const replyRaw = extractLatestAssistantText(msgs);
+    const reply = stripCitations(replyRaw);
 
     res.json({ threadId: tid, reply: reply || "" });
   } catch (e) {
